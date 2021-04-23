@@ -1,0 +1,46 @@
+package channel
+
+import (
+	"fmt"
+	"sync"
+)
+
+type Request struct {
+	Num  int
+	Resp chan Response
+}
+
+type Response struct {
+	Num      int
+	WorkerID int
+}
+
+func PlusOneService(reqs <-chan Request, WorkerID int) {
+	for req := range reqs {
+		go func(req Request) {
+			defer close(req.Resp)
+			req.Resp <- Response{req.Num + 1, WorkerID}
+		}(req)
+	}
+}
+
+func Example_ResponseSync() {
+	reqs := make(chan Request)
+	defer close(reqs)
+	for i := 0; i < 3; i++ {
+		go PlusOneService(reqs, i)
+	}
+	var wg sync.WaitGroup
+	for i := 3; i < 53; i += 10 {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			resps := make(chan Response)
+			reqs <- Request{i, resps}
+			fmt.Println(i, "=>", <-resps)
+		}(i)
+	}
+	wg.Wait()
+	// Output:
+	// .
+}
